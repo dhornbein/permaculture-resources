@@ -1,0 +1,118 @@
+`<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resource List</title>
+  <!-- Step 2: Include External Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    img.cover:after {
+      content: attr(alt);
+      font-size: 1rem;
+      background: #ddd;
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      left: 0;
+      top: 0;
+      display: inline-block;
+      align-content: center;
+      text-align: center;
+      padding: 1em;
+    }
+    img.cover {
+      min-width: 180px;
+      min-height: 260px;
+      position: relative;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Step 5: Create Vue.js App -->
+  <div id="app" class="p-4">
+    <h1 class="text-2xl font-bold mb-4">Resource List</h1>
+    <div v-if="loading" class="text-center">Loading...</div>
+    <div v-else>
+      <div class="wrapper p-4 flex flex-col gap-4">
+        <div class="resource flex flex-wrap gap-2 p-4 border border-gray-100" v-for="resource in resources" :key="resource[0]">
+          <img class="cover" :src="getCover(resource)" :alt="resource.Name" @error="handleImageError">
+          <p v-else>Book cover not available</p>
+          <div class="details">
+            <h1 class="text-2xl font-bold">{{ resource.Name }}</h1>
+            <div class="meta">
+              <em>Author:</em>
+              <span class="rounded text-gray-600 border border-gray-200 px-2" v-for="author in resource.Author.split(',')" :key="author">{{ author }}</span>
+            </div>
+            <p class="mt-2 pt-1 border-t border-gray-100 text-sm max-w-prose">{{ resource.Description }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Fetch and Parse CSV -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+  <script>
+    const googleSheetsCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQCadbbTI6K0eWCTfBypjWd5MEKF8J3fOa6clturGPjNXfpY-R5LlibmTzdtPijKHjqY4MO5zxwGjjy/pub?output=csv'
+
+    new Vue({
+      el: '#app',
+      data: {
+        resources: [],
+        loading: true,
+      },
+      created() {
+        Papa.parse(googleSheetsCSV, {
+            download: true,
+            header: true,
+            complete: (results) => {
+              console.log('updates', results);
+              this.resources = results.data;
+              this.loading = false;
+            },
+            error: (error) => {
+              console.error('Error parsing CSV:', error);
+              this.loading = false;
+            }
+          })
+      },
+      computed: {
+        headers() {
+          // Extract keys from the first object in resources array
+          if (this.resources.length > 0) {
+            return Object.keys(this.resources[0]);
+          } else {
+            return [];
+          }
+        }
+      },
+      methods: {
+        getCover(resource) {
+          let path = ''
+          let id = ''
+          if(resource.cover_i) {
+            path = 'id';
+            id = resource.cover_i
+          } else if (resource.ISBN) {
+            path = 'isbn';
+            id = resource.ISBN
+          } else {
+            return false
+          }
+          return `https://covers.openlibrary.org/b/${path}/${id}-M.jpg?default=false`
+        },
+        handleImageError(event) {
+          // Handle the image error (404 or other)
+          this.imageError = true; // Set error state to true
+          // Optionally, you can apply other styles or logic here
+        }
+      },
+    });
+  </script>
+</body>
+
+</html>
