@@ -27,6 +27,8 @@
       width: 180px;
       min-height: 260px;
       position: relative;
+      object-fit: cover;
+      object-position: top;
     }
   </style>
 </head>
@@ -34,8 +36,9 @@
 <body>
   <div id="app" class="p-4">
 
-    <header class="flex justify-between p-2 col-span-2">
+    <header class="flex flex-wrap justify-between p-2 col-span-2">
       <h1 class="text-2xl font-bold mb-4">PDC 2024 - Resource List</h1>
+      <a class="underline text-blue-600" href="https://github.com/dhornbein/permaculture-resources/issues">Report Issues on GitHub</a>
       <p>This page is pulled from a google spreadsheet, want to add or edit something? <a class="underline text-blue-600" :href="googleSheetsURL">Request access here</a>.</p>
     </header>
     
