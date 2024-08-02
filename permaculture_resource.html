@@ -1,5 +1,5 @@
-`<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
 
 <head>
   <meta charset="UTF-8">
@@ -24,7 +24,7 @@
       padding: 1em;
     }
     img.cover {
-      min-width: 180px;
+      width: 180px;
       min-height: 260px;
       position: relative;
     }
@@ -32,16 +32,22 @@
 </head>
 
 <body>
-  <!-- Step 5: Create Vue.js App -->
   <div id="app" class="p-4">
-    <h1 class="text-2xl font-bold mb-4">Resource List</h1>
-    <div v-if="loading" class="text-center">Loading...</div>
-    <div v-else>
-      <div class="wrapper p-4 flex flex-col gap-4">
-        <div class="resource flex flex-wrap gap-2 p-4 border border-gray-100" v-for="resource in resources" :key="resource[0]">
-          <img class="cover" :src="getCover(resource)" :alt="resource.Name" @error="handleImageError">
-          <p v-else>Book cover not available</p>
-          <div class="details">
+
+    <header class="flex justify-between p-2 col-span-2">
+      <h1 class="text-2xl font-bold mb-4">PDC 2024 - Resource List</h1>
+      <p>This page is pulled from a google spreadsheet, want to add or edit something? <a class="underline text-blue-600" :href="googleSheetsURL">Request access here</a>.</p>
+    </header>
+    
+    <div class="">
+
+      <div v-if="loading" class="text-center">Loading...</div>
+
+      <div v-else class="wrapper w-full grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+
+        <div :ref="`book${index}`" class="resource flex border border-gray-300 rounded w-[280px]" v-for="(resource, index) in resources" :key="resource[0]">
+          <img class="cover flex-shrink-0" :src="getCover(resource)" :alt="resource.Name" @error="handleImageError">
+          <div class="details p-4">
             <h1 class="text-2xl font-bold">{{ resource.Name }}</h1>
             <div class="meta">
               <em>Author:</em>
@@ -50,8 +56,11 @@
             <p class="mt-2 pt-1 border-t border-gray-100 text-sm max-w-prose">{{ resource.Description }}</p>
           </div>
         </div>
+
       </div>
+
     </div>
+
   </div>
 
   <!-- Step 4: Fetch and Parse CSV -->
@@ -64,6 +73,7 @@
       data: {
         resources: [],
         loading: true,
+        googleSheetsURL: 'https://docs.google.com/spreadsheets/d/1V4hvnCTHRM2-xod10f9M_RjAh3hPhl6XZcWWa6Hme1E/edit?gid=0#gid=0'
       },
       created() {
         Papa.parse(googleSheetsCSV, {
