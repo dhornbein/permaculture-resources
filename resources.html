@@ -51,20 +51,23 @@
     <div class="mb-6">
       <input v-model="searchQuery" type="text" placeholder="Search for resources..." class="border p-2 w-full mb-4">
 
-      <div v-if="types.length > 1" class="flex flex-wrap mb-4">
-        <span v-for="type in types" :key="type" @click="toggleFilter(type, 'type')"
+      <div class="flex flex-wrap mb-4">
+        <span v-if="types.length > 1" v-for="type in types" :key="type" @click="toggleFilter(type, 'type')"
           :class="{'bg-blue-500 text-white': activeFilters.type.includes(type), 'bg-gray-200 text-black': !activeFilters.type.includes(type)}"
           class="cursor-pointer px-3 py-1 m-1 rounded-full border border-gray-300">
           {{ type }}
         </span>
-      </div>
 
-      <div v-if="topics.length > 1" class="flex flex-wrap mb-4">
-        <span v-for="topic in topics" :key="topic" @click="toggleFilter(topic, 'topic')"
+        <span class="px-3 py-1 m-1">Topics:</span>
+        
+        <span v-if="topics.length > 1" v-for="topic in topics" :key="topic" @click="toggleFilter(topic, 'topic')"
           :class="{'bg-green-500 text-white': activeFilters.topic.includes(topic), 'bg-gray-200 text-black': !activeFilters.topic.includes(topic)}"
           class="cursor-pointer px-3 py-1 m-1 rounded-full border border-gray-300">
           {{ topic }}
         </span>
+      </div>
+
+      <div class="flex flex-wrap mb-4">
       </div>
     </div>
 
@@ -112,13 +115,22 @@
           download: true,
           header: true,
           complete: (results) => {
-            this.resources = results.data;
-            this.filteredResources = results.data;
+            // Normalize data and handle multiple topics
+            this.resources = results.data.map(resource => {
+              if (resource.Topic) {
+                resource.Topics = resource.Topic.split(',').map(topic => topic.trim().toLowerCase());
+              } else {
+                resource.Topics = [];
+              }
+              return resource;
+            });
+
+            this.filteredResources = this.resources;
             this.loading = false;
 
             // Extract unique types and topics
-            this.types = [...new Set(this.resources.map(r => r.Type).filter(Boolean))];
-            this.topics = [...new Set(this.resources.map(r => r.Topic).filter(Boolean))];
+            this.types = [...new Set(this.resources.map(r => r.Type ? r.Type.toLowerCase() : '').filter(Boolean))];
+            this.topics = [...new Set(this.resources.flatMap(r => r.Topics))];
           },
           error: (error) => {
             console.error('Error parsing CSV:', error);
@@ -181,12 +193,16 @@
             results = fuse.search(this.searchQuery).map(result => result.item);
           }
 
-          // Apply type and topic filters
+          // Apply type filter (case-insensitive)
           if (this.activeFilters.type.length) {
-            results = results.filter(r => this.activeFilters.type.includes(r.Type));
+            results = results.filter(r => r.Type && this.activeFilters.type.includes(r.Type.toLowerCase()));
           }
+
+          // Apply topic filter (supporting multiple topics per resource, case-insensitive)
           if (this.activeFilters.topic.length) {
-            results = results.filter(r => this.activeFilters.topic.includes(r.Topic));
+            results = results.filter(r =>
+              r.Topics.some(topic => this.activeFilters.topic.includes(topic))
+            );
           }
 
           this.filteredResources = results;
