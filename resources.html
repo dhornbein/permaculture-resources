@@ -72,18 +72,18 @@
     <div v-if="loading" class="text-center">Loading...</div>
 
     <div v-else class="wrapper w-full grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
-      <div :ref="`book${index}`" class="resource flex border border-gray-300 rounded w-[280px]"
+      <div :ref="`resource${index}`" class="resource flex border border-gray-300 rounded w-[280px]" :class="resource.Type ? resource.Type.toLowerCase() : ''"
         v-for="(resource, index) in filteredResources" :key="resource.id">
-        <img class="cover flex-shrink-0" :src="getCover(resource)" :alt="sanitizeAlt(resource.Name)"
-          @error="handleImageError">
+        <img class="cover flex-shrink-0" :alt="sanitizeAlt(resource.Name)"
+          @error="handleImageError" :src="resource.Type === 'Video' ? getVideoThumbnail(resource.URL) : getCover(resource)">
         <div class="details p-4">
           <h1 class="text-2xl font-bold">{{ resource.Name }}</h1>
           <div class="meta">
-            <em>Author:</em>
             <span class="rounded text-gray-600 border border-gray-200 px-2" v-for="author in resource.Author.split(',')"
               :key="author">{{ author }}</span>
           </div>
           <p class="mt-2 pt-1 border-t border-gray-100 text-sm max-w-prose">{{ resource.Description }}</p>
+          <a :href="resource.URL" v-if="resource.Type === 'Video'" class="bg-blue-400 text-white p-2 rounded inline-block mt-2" target="_blank">&#9654; Watch Video</a>
         </div>
       </div>
     </div>
@@ -190,7 +190,38 @@
           }
 
           this.filteredResources = results;
-        }
+        },
+        getVideoThumbnail(url) {
+          if (!url) return '';
+
+          let thumbnailUrl = '';
+
+          // Check if the URL is from YouTube
+          const youtubeMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+          if (youtubeMatch) {
+            const videoId = youtubeMatch[1];
+            thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+          }
+
+          // Check if the URL is from Vimeo
+          const vimeoMatch = url.match(/(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)/);
+          if (vimeoMatch) {
+            const videoId = vimeoMatch[1];
+            // Make an API call to Vimeo to get the thumbnail
+            fetch(`https://vimeo.com/api/v2/video/${videoId}.json`)
+              .then(response => response.json())
+              .then(data => {
+                if (data && data[0] && data[0].thumbnail_large) {
+                  thumbnailUrl = data[0].thumbnail_large;
+                }
+              })
+              .catch(error => {
+                console.error('Error fetching Vimeo thumbnail:', error);
+              });
+          }
+
+          return thumbnailUrl;
+        },
       }
     });
   </script>
