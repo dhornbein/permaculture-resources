@@ -8,6 +8,8 @@
   <!-- Step 2: Include External Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
   <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.5.3/dist/fuse.min.js"></script>
   <style>
     img.cover:after {
       content: attr(alt);
@@ -23,6 +25,7 @@
       text-align: center;
       padding: 1em;
     }
+
     img.cover {
       width: 180px;
       min-height: 260px;
@@ -38,93 +41,157 @@
 
     <header class="flex flex-wrap justify-between p-2 col-span-2">
       <h1 class="text-2xl font-bold mb-4">PDC 2024 - Resource List</h1>
-      <a class="underline text-blue-600" href="https://github.com/dhornbein/permaculture-resources/issues">Report Issues on GitHub</a>
-      <p>This page is pulled from a google spreadsheet, want to add or edit something? <a class="underline text-blue-600" :href="googleSheetsURL">Request access here</a>.</p>
+      <a class="underline text-blue-600" href="https://github.com/dhornbein/permaculture-resources/issues">Report Issues
+        on GitHub</a>
+      <p>This page is pulled from a google spreadsheet, want to add or edit something? <a
+          class="underline text-blue-600" :href="googleSheetsURL">Request access here</a>.</p>
     </header>
-    
-    <div class="">
 
-      <div v-if="loading" class="text-center">Loading...</div>
+    <!-- Search and Filter Controls -->
+    <div class="mb-6">
+      <input v-model="searchQuery" type="text" placeholder="Search for resources..." class="border p-2 w-full mb-4">
 
-      <div v-else class="wrapper w-full grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
-
-        <div :ref="`book${index}`" class="resource flex border border-gray-300 rounded w-[280px]" v-for="(resource, index) in resources" :key="resource[0]">
-          <img class="cover flex-shrink-0" :src="getCover(resource)" :alt="resource.Name" @error="handleImageError">
-          <div class="details p-4">
-            <h1 class="text-2xl font-bold">{{ resource.Name }}</h1>
-            <div class="meta">
-              <em>Author:</em>
-              <span class="rounded text-gray-600 border border-gray-200 px-2" v-for="author in resource.Author.split(',')" :key="author">{{ author }}</span>
-            </div>
-            <p class="mt-2 pt-1 border-t border-gray-100 text-sm max-w-prose">{{ resource.Description }}</p>
-          </div>
-        </div>
-
+      <div v-if="types.length > 1" class="flex flex-wrap mb-4">
+        <span v-for="type in types" :key="type" @click="toggleFilter(type, 'type')"
+          :class="{'bg-blue-500 text-white': activeFilters.type.includes(type), 'bg-gray-200 text-black': !activeFilters.type.includes(type)}"
+          class="cursor-pointer px-3 py-1 m-1 rounded-full border border-gray-300">
+          {{ type }}
+        </span>
       </div>
 
+      <div v-if="topics.length > 1" class="flex flex-wrap mb-4">
+        <span v-for="topic in topics" :key="topic" @click="toggleFilter(topic, 'topic')"
+          :class="{'bg-green-500 text-white': activeFilters.topic.includes(topic), 'bg-gray-200 text-black': !activeFilters.topic.includes(topic)}"
+          class="cursor-pointer px-3 py-1 m-1 rounded-full border border-gray-300">
+          {{ topic }}
+        </span>
+      </div>
     </div>
 
+    <!-- Resource List -->
+    <div v-if="loading" class="text-center">Loading...</div>
+
+    <div v-else class="wrapper w-full grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+      <div :ref="`book${index}`" class="resource flex border border-gray-300 rounded w-[280px]"
+        v-for="(resource, index) in filteredResources" :key="resource.id">
+        <img class="cover flex-shrink-0" :src="getCover(resource)" :alt="sanitizeAlt(resource.Name)"
+          @error="handleImageError">
+        <div class="details p-4">
+          <h1 class="text-2xl font-bold">{{ resource.Name }}</h1>
+          <div class="meta">
+            <em>Author:</em>
+            <span class="rounded text-gray-600 border border-gray-200 px-2" v-for="author in resource.Author.split(',')"
+              :key="author">{{ author }}</span>
+          </div>
+          <p class="mt-2 pt-1 border-t border-gray-100 text-sm max-w-prose">{{ resource.Description }}</p>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Step 4: Fetch and Parse CSV -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
   <script>
     const googleSheetsCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQCadbbTI6K0eWCTfBypjWd5MEKF8J3fOa6clturGPjNXfpY-R5LlibmTzdtPijKHjqY4MO5zxwGjjy/pub?gid=0&single=true&output=csv';
-
 
     new Vue({
       el: '#app',
       data: {
         resources: [],
+        filteredResources: [],
+        searchQuery: '',
         loading: true,
+        types: [],
+        topics: [],
+        activeFilters: {
+          type: [],
+          topic: []
+        },
         googleSheetsURL: 'https://docs.google.com/spreadsheets/d/1V4hvnCTHRM2-xod10f9M_RjAh3hPhl6XZcWWa6Hme1E/edit?gid=0#gid=0'
       },
       created() {
         Papa.parse(googleSheetsCSV, {
-            download: true,
-            header: true,
-            complete: (results) => {
-              console.log('updates', results);
-              this.resources = results.data;
-              this.loading = false;
-            },
-            error: (error) => {
-              console.error('Error parsing CSV:', error);
-              this.loading = false;
-            }
-          })
-      },
-      computed: {
-        headers() {
-          // Extract keys from the first object in resources array
-          if (this.resources.length > 0) {
-            return Object.keys(this.resources[0]);
-          } else {
-            return [];
+          download: true,
+          header: true,
+          complete: (results) => {
+            this.resources = results.data;
+            this.filteredResources = results.data;
+            this.loading = false;
+
+            // Extract unique types and topics
+            this.types = [...new Set(this.resources.map(r => r.Type).filter(Boolean))];
+            this.topics = [...new Set(this.resources.map(r => r.Topic).filter(Boolean))];
+          },
+          error: (error) => {
+            console.error('Error parsing CSV:', error);
+            this.loading = false;
           }
+        });
+      },
+      watch: {
+        searchQuery() {
+          this.applyFilters();
+        },
+        activeFilters: {
+          handler() {
+            this.applyFilters();
+          },
+          deep: true
         }
       },
       methods: {
         getCover(resource) {
-          let path = ''
-          let id = ''
-          if(resource.cover_i) {
+          let path = '';
+          let id = '';
+          if (resource.cover_i) {
             path = 'id';
-            id = resource.cover_i
+            id = resource.cover_i;
           } else if (resource.ISBN) {
             path = 'isbn';
-            id = resource.ISBN
+            id = resource.ISBN;
           } else {
-            return false
+            return false;
           }
-          return `https://covers.openlibrary.org/b/${path}/${id}-M.jpg?default=false`
+          return `https://covers.openlibrary.org/b/${path}/${id}-M.jpg?default=false`;
         },
         handleImageError(event) {
-          // Handle the image error (404 or other)
-          this.imageError = true; // Set error state to true
-          // Optionally, you can apply other styles or logic here
+          event.target.classList.add('broken');
+        },
+        sanitizeAlt(name) {
+          if (!name) return '';
+          return name.replace(/["&'<>]/g, '');
+        },
+        toggleFilter(value, type) {
+          const filterArray = this.activeFilters[type];
+          const index = filterArray.indexOf(value);
+          if (index === -1) {
+            filterArray.push(value);
+          } else {
+            filterArray.splice(index, 1);
+          }
+        },
+        applyFilters() {
+          const fuse = new Fuse(this.resources, {
+            keys: ['Name', 'Author'],
+            threshold: 0.4 // Adjust threshold for fuzzy matching
+          });
+
+          let results = this.resources;
+
+          // Apply fuzzy search
+          if (this.searchQuery) {
+            results = fuse.search(this.searchQuery).map(result => result.item);
+          }
+
+          // Apply type and topic filters
+          if (this.activeFilters.type.length) {
+            results = results.filter(r => this.activeFilters.type.includes(r.Type));
+          }
+          if (this.activeFilters.topic.length) {
+            results = results.filter(r => this.activeFilters.topic.includes(r.Topic));
+          }
+
+          this.filteredResources = results;
         }
-      },
+      }
     });
   </script>
 </body>
