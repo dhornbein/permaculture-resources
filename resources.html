@@ -11,7 +11,7 @@
   <meta property="og:description" content="A comprehensive list of permaculture resources from the 2024 Denver PDC">
   <meta property="og:type" content="website">
   <!-- Step 2: Include External Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
   <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.5.3/dist/fuse.min.js"></script>
@@ -45,15 +45,22 @@
       border: 2px dashed #d1d5db;
     }
 
+    /* Mobile responsiveness improvements */
     @media (max-width: 640px) {
       .resource {
         flex-direction: column;
         width: 100% !important;
+        max-width: 100%;
       }
       
       img.cover {
         width: 100%;
         height: 200px;
+      }
+      
+      .wrapper {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
       }
     }
   </style>
@@ -99,17 +106,19 @@
 
     <div v-else class="wrapper w-full grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
       <div :ref="`resource${index}`" class="resource flex border border-gray-300 rounded w-[280px]" :class="resource.Type ? resource.Type.toLowerCase() : ''"
-        v-for="(resource, index) in filteredResources" :key="resource.id">
-        <img class="cover flex-shrink-0" :alt="sanitizeAlt(resource.Name)"
+        v-for="(resource, index) in filteredResources" :key="resource.id || index">
+        <img v-if="getCover(resource)" class="cover flex-shrink-0" :alt="sanitizeAlt(resource.Name)"
           @error="handleImageError" :src="resource.Type === 'Video' ? getVideoThumbnail(resource.URL) : getCover(resource)">
-        <div class="details p-4">
+        <div class="details p-4" :class="{'w-full': !getCover(resource)}">
           <h1 class="text-2xl font-bold">{{ resource.Name }}</h1>
-          <div class="meta">
+          <div class="meta" v-if="resource.Author && resource.Author.trim()">
             <span class="rounded text-gray-600 border border-gray-200 px-2" v-for="author in resource.Author.split(',')"
-              :key="author">{{ author }}</span>
+              :key="author">{{ author.trim() }}</span>
           </div>
-          <p class="mt-2 pt-1 border-t border-gray-100 text-sm max-w-prose">{{ resource.Description }}</p>
-          <a :href="resource.URL" v-if="resource.Type === 'Video'" class="bg-blue-400 text-white p-2 rounded inline-block mt-2" target="_blank">&#9654; Watch Video</a>
+          <p v-if="resource.Description && resource.Description.trim()" class="mt-2 pt-1 border-t border-gray-100 text-sm max-w-prose">{{ resource.Description }}</p>
+          <a :href="resource.URL" v-if="resource.Type === 'Video' && resource.URL" 
+             class="bg-blue-400 text-white p-2 rounded inline-block mt-2 hover:bg-blue-500 transition-colors" 
+             target="_blank" rel="noopener noreferrer">&#9654; Watch Video</a>
         </div>
       </div>
     </div>
@@ -125,6 +134,7 @@
         filteredResources: [],
         searchQuery: '',
         loading: true,
+        fuseInstance: null,
         types: [],
         topics: [],
         activeFilters: {
@@ -138,22 +148,37 @@
           download: true,
           header: true,
           complete: (results) => {
-            // Normalize data and handle multiple topics
-            this.resources = results.data.map(resource => {
-              if (resource.Topic) {
-                resource.Topics = resource.Topic.split(',').map(topic => topic.trim().toLowerCase());
-              } else {
-                resource.Topics = [];
-              }
-              return resource;
-            });
+            try {
+              // Filter out empty rows and normalize data
+              const validResources = results.data.filter(resource => 
+                resource.Name && resource.Name.trim()
+              );
+              
+              this.resources = validResources.map(resource => {
+                if (resource.Topic) {
+                  resource.Topics = resource.Topic.split(',').map(topic => topic.trim().toLowerCase());
+                } else {
+                  resource.Topics = [];
+                }
+                return resource;
+              });
 
-            this.filteredResources = this.resources;
-            this.loading = false;
+              // Initialize Fuse instance for better search performance
+              this.fuseInstance = new Fuse(this.resources, {
+                keys: ['Name', 'Author'],
+                threshold: 0.4
+              });
 
-            // Extract unique types and topics
-            this.types = [...new Set(this.resources.map(r => r.Type ? r.Type.toLowerCase() : '').filter(Boolean))];
-            this.topics = [...new Set(this.resources.flatMap(r => r.Topics))];
+              this.filteredResources = this.resources;
+              this.loading = false;
+
+              // Extract unique types and topics
+              this.types = [...new Set(this.resources.map(r => r.Type ? r.Type.toLowerCase() : '').filter(Boolean))];
+              this.topics = [...new Set(this.resources.flatMap(r => r.Topics))];
+            } catch (error) {
+              console.error('Error processing CSV data:', error);
+              this.loading = false;
+            }
           },
           error: (error) => {
             console.error('Error parsing CSV:', error);
@@ -183,12 +208,14 @@
             path = 'isbn';
             id = resource.ISBN;
           } else {
-            return false;
+            return null; // No cover available
           }
           return `https://covers.openlibrary.org/b/${path}/${id}-M.jpg?default=false`;
         },
         handleImageError(event) {
           event.target.classList.add('broken');
+          // Hide broken images gracefully
+          event.target.style.display = 'none';
         },
         sanitizeAlt(name) {
           if (!name) return '';
@@ -204,16 +231,11 @@
           }
         },
         applyFilters() {
-          const fuse = new Fuse(this.resources, {
-            keys: ['Name', 'Author'],
-            threshold: 0.4 // Adjust threshold for fuzzy matching
-          });
-
           let results = this.resources;
 
-          // Apply fuzzy search
-          if (this.searchQuery) {
-            results = fuse.search(this.searchQuery).map(result => result.item);
+          // Apply fuzzy search using cached Fuse instance
+          if (this.searchQuery && this.fuseInstance) {
+            results = this.fuseInstance.search(this.searchQuery).map(result => result.item);
           }
 
           // Apply type filter (case-insensitive)
