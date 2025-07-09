@@ -4,14 +4,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Resource List</title>
+  <title>PDC 2024 - Permaculture Resource List</title>
+  <meta name="description" content="A comprehensive list of permaculture resources from the 2024 Denver PDC, including books, videos, and educational materials.">
+  <meta name="keywords" content="permaculture, PDC, resources, books, videos, education, sustainable design">
+  <meta property="og:title" content="PDC 2024 - Permaculture Resource List">
+  <meta property="og:description" content="A comprehensive list of permaculture resources from the 2024 Denver PDC">
+  <meta property="og:type" content="website">
   <!-- Step 2: Include External Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
   <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.5.3/dist/fuse.min.js"></script>
   <style>
-    img.cover:after {
+    img.cover::after {
       content: attr(alt);
       font-size: 1rem;
       background: #ddd;
@@ -20,8 +25,9 @@
       height: 100%;
       left: 0;
       top: 0;
-      display: inline-block;
-      align-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
       padding: 1em;
     }
@@ -32,6 +38,23 @@
       position: relative;
       object-fit: cover;
       object-position: top;
+    }
+
+    img.cover.broken {
+      background: #f3f4f6;
+      border: 2px dashed #d1d5db;
+    }
+
+    @media (max-width: 640px) {
+      .resource {
+        flex-direction: column;
+        width: 100% !important;
+      }
+      
+      img.cover {
+        width: 100%;
+        height: 200px;
+      }
     }
   </style>
 </head>
@@ -219,25 +242,9 @@
             thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
           }
 
-          // Check if the URL is from Vimeo
-          const vimeoMatch = url.match(/(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)/);
-          if (vimeoMatch) {
-            const videoId = vimeoMatch[1];
-            // Make an API call to Vimeo to get the thumbnail
-            fetch(`https://vimeo.com/api/v2/video/${videoId}.json`)
-              .then(response => response.json())
-              .then(data => {
-                if (data && data[0] && data[0].thumbnail_large) {
-                  thumbnailUrl = data[0].thumbnail_large;
-                }
-              })
-              .catch(error => {
-                console.error('Error fetching Vimeo thumbnail:', error);
-              });
-          }
-
+          // For other videos, return empty to use fallback
           return thumbnailUrl;
-        },
+        }
       }
     });
   </script>
